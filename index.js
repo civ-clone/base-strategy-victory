@@ -14,11 +14,14 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ResearchForGoal = exports.LaunchSpaceship = exports.BuildSpaceship = void 0;
+exports.ResearchForGoal = exports.LaunchSpaceship = exports.BuildSpaceship = exports.Campaign = void 0;
 __exportStar(require("./lib/VictoryDependencies"), exports);
 __exportStar(require("./lib/goal"), exports);
 __exportStar(require("./lib/research"), exports);
 __exportStar(require("./lib/Space/SpaceRacePolicy"), exports);
+__exportStar(require("./lib/Conquest/ConquestPolicy"), exports);
+var Campaign_1 = require("./Strategies/Unit/Campaign");
+Object.defineProperty(exports, "Campaign", { enumerable: true, get: function () { return Campaign_1.default; } });
 var BuildSpaceship_1 = require("./Strategies/City/BuildSpaceship");
 Object.defineProperty(exports, "BuildSpaceship", { enumerable: true, get: function () { return BuildSpaceship_1.default; } });
 var LaunchSpaceship_1 = require("./Strategies/Turn/LaunchSpaceship");
