@@ -5,31 +5,54 @@ import PlayerResearch from '@civ-clone/core-science/PlayerResearch';
 import Requirements from '@civ-clone/core-science/Rules/Requirements';
 import RuleRegistry from '@civ-clone/core-rule/RuleRegistry';
 
-const directCache = new WeakMap<
-  RuleRegistry,
-  Map<typeof Advance, (typeof Advance)[]>
->();
+// Per ruleset and set of advances: every advance as a stand-in for "known", and each advance's direct prerequisites.
+type Probe = {
+  known: Advance[];
+  direct: Map<typeof Advance, (typeof Advance)[]>;
+};
+
+const probes = new WeakMap<RuleRegistry, WeakMap<AdvanceRegistry, Probe>>();
+
+const probeFor = (
+  advanceRegistry: AdvanceRegistry,
+  ruleRegistry: RuleRegistry
+): Probe => {
+  if (!probes.has(ruleRegistry)) {
+    probes.set(ruleRegistry, new WeakMap());
+  }
+
+  const byAdvances = probes.get(ruleRegistry)!;
+
+  if (!byAdvances.has(advanceRegistry)) {
+    byAdvances.set(advanceRegistry, {
+      // Stand-ins rather than `new`: `instanceof` is all a rule asks of a completed advance, and a real one would take
+      //  the next id from its class, so a game would number its advances differently once this had run.
+      known: advanceRegistry
+        .entries()
+        .map(
+          (AdvanceType: typeof Advance) =>
+            Object.create(AdvanceType.prototype) as Advance
+        ),
+      direct: new Map(),
+    });
+  }
+
+  return byAdvances.get(advanceRegistry)!;
+};
 
 // The advances `Goal` needs directly: those without which it can't be researched even knowing everything else. The
-//  rules are opaque, so each is asked: is `Goal` still available with everything known but this one?
+//  rules are opaque, so each is asked: is `Goal` still available with everything known but this one? Requirements are
+//  taken as all-of, as Civ1's are.
 export const directPrerequisites = (
   Goal: typeof Advance,
   advanceRegistry: AdvanceRegistry,
   ruleRegistry: RuleRegistry
 ): (typeof Advance)[] => {
-  if (!directCache.has(ruleRegistry)) {
-    directCache.set(ruleRegistry, new Map());
-  }
+  const probe = probeFor(advanceRegistry, ruleRegistry);
 
-  const cache = directCache.get(ruleRegistry)!;
-
-  if (!cache.has(Goal)) {
-    const others = advanceRegistry
-        .entries()
-        .filter((AdvanceType: typeof Advance) => AdvanceType !== Goal),
-      known = others.map(
-        (AdvanceType: typeof Advance) =>
-          new (AdvanceType as unknown as new () => Advance)()
+  if (!probe.direct.has(Goal)) {
+    const known = probe.known.filter(
+        (advance: Advance): boolean => !(advance instanceof Goal)
       ),
       rules = ruleRegistry.get(Requirements),
       satisfied = (complete: Advance[]): boolean =>
@@ -42,20 +65,26 @@ export const directPrerequisites = (
               rule.process(Goal, complete) === true
           );
 
-    cache.set(
+    probe.direct.set(
       Goal,
       satisfied(known)
-        ? others.filter(
-            (Prerequisite: typeof Advance): boolean =>
-              !satisfied(
-                known.filter((advance) => !(advance instanceof Prerequisite))
-              )
-          )
+        ? advanceRegistry
+            .entries()
+            .filter(
+              (Prerequisite: typeof Advance): boolean =>
+                Prerequisite !== Goal &&
+                !satisfied(
+                  known.filter(
+                    (advance: Advance): boolean =>
+                      !(advance instanceof Prerequisite)
+                  )
+                )
+            )
         : []
     );
   }
 
-  return cache.get(Goal)!;
+  return probe.direct.get(Goal)!;
 };
 
 // Every advance the player still needs for `goals`, the goals included, prerequisites first.
